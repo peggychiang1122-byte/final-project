@@ -40,8 +40,7 @@ class Player(pygame.sprite.Sprite):
             self.is_attacking = True
 
 
-    def attack_hitbox(self, enemies_group, screen,
-    camera_x=0, camera_y=0):
+    def attack_hitbox(self, enemies_group, screen):
         if self.is_attacking and 3 <= self.animator.current_frames <= 5:
             hitbox_width, hitbox_height = 22, 40
             if self.flip:
