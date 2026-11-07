@@ -20,10 +20,7 @@ class CollisionSystem:
             (rect.left, rect.bottom)
         ]
 
-        axes = [
-            (1, 0),
-            (0, 1)
-        ]
+        axes = [ (1, 0), (0, 1) ]
 
         for i in range(len(polygon)):
 
@@ -40,10 +37,7 @@ class CollisionSystem:
             if length == 0:
                 continue
 
-            axis = (
-                axis[0] / length,
-                axis[1] / length
-            )
+            axis = (  axis[0] / length,  axis[1] / length )
 
             axes.append(axis)
 
@@ -55,22 +49,13 @@ class CollisionSystem:
             sum(p[1] for p in polygon) / len(polygon)
         )
 
-        rect_center = (
-            rect.centerx,
-            rect.centery
-        )
+        rect_center = ( rect.centerx,  rect.centery  )
 
         for axis_x, axis_y in axes:
 
-            rect_projection = [
-                p[0] * axis_x + p[1] * axis_y
-                for p in rect_points
-            ]
+            rect_projection = [  p[0] * axis_x + p[1] * axis_y  for p in rect_points]
 
-            polygon_projection = [
-                p[0] * axis_x + p[1] * axis_y
-                for p in polygon
-            ]
+            polygon_projection = [p[0] * axis_x + p[1] * axis_y  for p in polygon ]
 
             rect_min = min(rect_projection)
             rect_max = max(rect_projection)
@@ -84,24 +69,20 @@ class CollisionSystem:
 
             if overlap <= 0:
                 return None
-
             if overlap < min_overlap:
-
                 min_overlap = overlap
                 smallest_axis = (axis_x, axis_y)
 
         if smallest_axis is None:
             return None
-
+        
         direction_x = rect_center[0] - polygon_center[0]
         direction_y = rect_center[1] - polygon_center[1]
 
         axis_x, axis_y = smallest_axis
-
         if direction_x * axis_x + direction_y * axis_y < 0:
             axis_x = -axis_x
             axis_y = -axis_y
-
         return (
             axis_x * min_overlap,
             axis_y * min_overlap
@@ -111,14 +92,12 @@ class CollisionSystem:
     # 2. 判斷矩形與 Polygon 是否碰撞
     # ==========================================
     def polygon_collide(self, rect, polygon):
-
         return self.polygon_mtv(rect, polygon) is not None
 
     # ==========================================
     # 3. 玩家移動與地圖碰撞
     # ==========================================
     def move_with_collisions(self, player_rect, dx, dy):
-
         # 取得 GameMap 的碰撞資料
         collisions = self.game_map.collisions
         polygons = self.game_map.polygons
@@ -132,70 +111,51 @@ class CollisionSystem:
 
         # 水平方向：矩形碰撞
         player_rect.x += dx
-
         for wall in collisions:
-
             if player_rect.colliderect(wall):
-
                 if dx > 0:
                     player_rect.right = wall.left
-
                 elif dx < 0:
                     player_rect.left = wall.right
 
         # 水平方向：Polygon 碰撞
         for polygon in polygons:
-
             mtv = self.polygon_mtv(player_rect, polygon)
-
             if mtv is not None:
-
                 player_rect.x += round(mtv[0])
                 player_rect.y += round(mtv[1])
-
                 if mtv[1] < 0:
                     on_ground = True
-
                 elif mtv[1] > 0:
                     hit_ceiling = True
 
         # 垂直方向：矩形碰撞
         old_bottom = player_rect.bottom
         player_rect.y += dy
-
         for wall in collisions:
-
             if player_rect.colliderect(wall):
-
                 if dy > 0:
                     player_rect.bottom = wall.top
                     on_ground = True
-
                 elif dy < 0:
                     player_rect.top = wall.bottom
                     hit_ceiling = True
 
         # 垂直方向：Polygon 碰撞
         for polygon in polygons:
-
             mtv = self.polygon_mtv(player_rect, polygon)
-
             if mtv is not None:
-
                 player_rect.x += round(mtv[0])
                 player_rect.y += round(mtv[1])
 
                 if mtv[1] < 0:
                     on_ground = True
-
                 elif mtv[1] > 0:
                     hit_ceiling = True
 
         # 單向平台碰撞
         if dy > 0:
-
             for platform in platforms:
-
                 crossed = (
                     old_bottom <= platform.top
                     and player_rect.bottom >= platform.top
@@ -207,7 +167,6 @@ class CollisionSystem:
                 )
 
                 if crossed and overlap:
-
                     player_rect.bottom = platform.top
                     on_ground = True
 
@@ -215,24 +174,19 @@ class CollisionSystem:
         ground_probe = player_rect.move(0, 1)
 
         for wall in collisions:
-
             if ground_probe.colliderect(wall):
                 on_ground = True
                 break
 
         if not on_ground:
-
             for platform in platforms:
-
                 if ground_probe.colliderect(platform):
                     on_ground = True
                     break
 
         # Polygon 地面接觸檢查
         if not on_ground:
-
             for polygon in polygons:
-
                 if self.polygon_collide(ground_probe, polygon):
                     on_ground = True
                     break

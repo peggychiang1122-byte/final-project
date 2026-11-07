@@ -29,9 +29,7 @@ class GameMap:
         self.show_collision_debug = True
 
         # 讀取碰撞物件圖層
-        layer_names = [
-            layer.name for layer in self.tmx_data.layers
-        ]
+        layer_names = [ layer.name for layer in self.tmx_data.layers ]
 
         print("地圖圖層：", layer_names)
 
@@ -41,9 +39,7 @@ class GameMap:
                 "請確認 Tiled 的圖層名稱。"
             )
 
-        collision_layer = self.tmx_data.get_layer_by_name(
-            "Collisions"
-        )
+        collision_layer = self.tmx_data.get_layer_by_name( "Collisions" )
 
 
 
@@ -56,16 +52,11 @@ class GameMap:
             if points:# 檢查第一個點是否已經在 obj.x, obj.y 附近 (判斷是相對座標還是絕對座標)
                 first_pt_x, first_pt_y = points[0]
                 is_absolute = (abs(first_pt_x - obj.x) < 2 and abs(first_pt_y - obj.y) < 2)
+
                 if is_absolute:# 如果已經是絕對座標，直接取用 pt
-                    polygon = [
-                        (round(pt[0]), round(pt[1]))
-                        for pt in points
-                    ]
+                    polygon = [ (round(pt[0]), round(pt[1]))for pt in points ]
                 else:# 如果是相對座標，才加上 obj.x 與 obj.y
-                    polygon = [
-                        (round(obj.x + pt[0]), round(obj.y + pt[1]))
-                        for pt in points
-                    ]
+                    polygon = [ (round(obj.x + pt[0]), round(obj.y + pt[1]))  for pt in points ]
 
                 if len(polygon) >= 3:
                     self.polygons.append(polygon)
@@ -118,14 +109,9 @@ class GameMap:
 
     # 將碰撞處理交給 collision.py
     def move_with_collisions(self, player_rect, dx, dy):
-
-        return self.collision_system.move_with_collisions(
-            player_rect, dx, dy
-        )
+        return self.collision_system.move_with_collisions( player_rect, dx, dy)
     
-    def get_camera_offset(
-        self, target_rect, screen_width, screen_height
-    ):
+    def get_camera_offset( self, target_rect, screen_width, screen_height):
         # 讓目標盡量位於畫面中央
         camera_x = target_rect.centerx - screen_width // 2
         camera_y = target_rect.centery - screen_height // 2
@@ -139,9 +125,7 @@ class GameMap:
 
         return camera_x, camera_y
 
-    def draw_collision_debug(
-        self, screen, camera_x=0, camera_y=0
-    ):
+    def draw_collision_debug( self, screen, camera_x=0, camera_y=0):
         if not self.show_collision_debug:
             return
 
@@ -165,8 +149,5 @@ class GameMap:
         for polygon in self.polygons:
             if len(polygon) < 3:
                 continue
-            screen_points = [
-                (round(x - camera_x), round(y - camera_y))
-                for x, y in polygon
-            ]
+            screen_points = [ (round(x - camera_x), round(y - camera_y)) for x, y in polygon  ]
             pygame.draw.polygon(screen, (255, 140, 0), screen_points, 2)
