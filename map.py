@@ -60,7 +60,7 @@ class GameMap:
 
                 if len(polygon) >= 3:
                     self.polygons.append(polygon)
-                    print("修復後 Polygon 世界座標：", polygon)
+                    #print("修復後 Polygon 世界座標：", polygon)
 
             else:# Rectangle 碰撞
                 if obj.width <= 0 or obj.height <= 0:
