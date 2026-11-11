@@ -4,9 +4,9 @@ import pygame
 import pytmx
 from collision import CollisionSystem
 
-
 class GameMap:
     def __init__(self, map_path):
+        self.map_path = map_path
         # 讀取 Tiled 匯出的 .tmx 地圖
         self.tmx_data = pytmx.load_pygame(map_path)
 
@@ -21,32 +21,41 @@ class GameMap:
         self.collisions = []
         self.platforms = []
         self.polygons = []    # 多邊形碰撞
+        self.portals = []  # 新增：儲存地圖切換傳送門資訊
 
         # 建立碰撞系統
         self.collision_system = CollisionSystem(self)
-
         # 顯示碰撞偵錯框的開關
         self.show_collision_debug = True
 
         # 讀取碰撞物件圖層
         layer_names = [ layer.name for layer in self.tmx_data.layers ]
-
         print("地圖圖層：", layer_names)
 
         if "Collisions" not in layer_names:
-            raise ValueError(
-                "找不到 Collisions 物件圖層。"
-                "請確認 Tiled 的圖層名稱。"
-            )
+            raise ValueError( "找不到 Collisions 物件圖層。" "請確認 Tiled 的圖層名稱。" )
 
         collision_layer = self.tmx_data.get_layer_by_name( "Collisions" )
 
 
-
-        # ==========================================
         # 讀取 Tiled 碰撞物件
         # ==========================================
         for obj in collision_layer:
+            # 檢查物件是否有設定 target_map 自訂屬性
+            target_map = obj.properties.get("target_map")
+
+            if target_map:
+                # 這是傳送門物件！記錄觸發範圍與目標資訊
+                portal_data = {
+                    "rect": pygame.Rect( round(obj.x), round(obj.y), round(obj.width),  round(obj.height), ),
+                    "target_map": target_map,
+                    "spawn_x": obj.properties.get("spawn_x", 100),
+                    "spawn_y": obj.properties.get("spawn_y", 100),
+                }
+                self.portals.append(portal_data)
+                continue
+
+
             # 判斷是否為 Polygon
             points = getattr(obj, "points", None)
             if points:# 檢查第一個點是否已經在 obj.x, obj.y 附近 (判斷是相對座標還是絕對座標)
@@ -86,9 +95,26 @@ class GameMap:
             
 
     def draw(self, screen, camera_x=0, camera_y=0):
+        
         # 依照 Tiled 的圖層順序繪製地圖
         for layer in self.tmx_data.visible_layers:
-            if isinstance(layer, pytmx.TiledTileLayer):
+            
+            # 1. 處理【圖片圖層 (Image Layer)】
+            if isinstance(layer, pytmx.TiledImageLayer):
+                if layer.image:
+                    # 優先讀取 offsetx/offsety，若沒有則讀取 x/y，最後預設為 0
+                    img_x = getattr(layer, 'offsetx', getattr(layer, 'x', 0)) or 0
+                    img_y = getattr(layer, 'offsety', getattr(layer, 'y', 0)) or 0
+
+                    # 計算加上攝影機偏移後的實際螢幕座標
+                    screen_x = img_x - camera_x
+                    screen_y = img_y - camera_y
+
+                    # 渲染圖片
+                    screen.blit(layer.image, (screen_x, screen_y))
+
+            # 2. 處理【傳統圖塊圖層 (Tile Layer)】
+            elif isinstance(layer, pytmx.TiledTileLayer):
                 for x, y, image in layer.tiles():
                     pixel_x = x * self.tile_width
                     pixel_y = y * self.tile_height

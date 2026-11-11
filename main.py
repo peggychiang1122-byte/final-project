@@ -34,10 +34,10 @@ class Game:
 
         # 載入背景與地圖
         bg_img = pygame.image.load(
-            "asset/Legacy-Fantasy - High Forest 2.3/Background/Background.png"
+            "Background/cloud_back .jpg"
         ).convert()
         self.background = pygame.transform.scale(bg_img, (WIDTH, HEIGHT))
-        self.game_map = GameMap("map_learning.tmx")
+        self.game_map = GameMap("map/main_world.tmx")
 
         # 備用假畫布（若舊版攻擊判定或特定無繪製需求時可使用）
         self.dummy_surface = pygame.Surface((1, 1))
