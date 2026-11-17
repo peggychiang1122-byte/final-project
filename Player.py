@@ -47,12 +47,7 @@ class Player(pygame.sprite.Sprite):
         self.status_timer = 0.0
 
         # 動畫速率設定 (以 60 FPS 為基準)
-        self.animation_speed = {
-            "Run": 0.20,
-            "idle": 0.12,
-            "Attack": 0.32,
-            "Jump": 0.18,
-        }
+        self.animation_speed = { "Run": 0.20, "idle": 0.12, "Attack": 0.32, "Jump": 0.18, }
 
         self.animator = AnimatedSprite()
         self.animator.load_animation(
@@ -108,6 +103,26 @@ class Player(pygame.sprite.Sprite):
     def is_parrying(self):
         """是否處於完美格擋時間窗內"""
         return self.is_blocking and self.parry_timer > 0.0
+
+    @property
+    def is_grounded(self):
+        """站立地面狀態"""
+        return self.on_ground
+
+    @is_grounded.setter
+    def is_grounded(self, val):
+        self.on_ground = val
+
+    def teleport(self, x, y):
+        """將玩家瞬移至指定世界座標 (地圖轉場重生)"""
+        self.pos_x = float(x)
+        self.pos_y = float(y)
+        self.velocity_y = 0.0
+        self.knockback_vel_x = 0.0
+        self.on_ground = False
+        self.is_jumping = False
+        self.collision_rect.midbottom = (round(self.pos_x), round(self.pos_y))
+        self.sync_boxes()
 
     def jump(self):
         """
@@ -330,42 +345,103 @@ class Player(pygame.sprite.Sprite):
         if not holding_block and self.is_blocking:
             self.stop_block()
 
-        # 3. 水平移動 (防禦中移動速度減半)
+        # 3. 水平移動計算 (防禦中移動速度減半)
         is_moving = False
         move_speed = self.player_speed * (0.45 if self.is_blocking else 1.0)
+        move_dir_x = 0.0
 
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            self.pos_x -= move_speed * dt
+            move_dir_x -= 1.0
             is_moving = True
             if not self.is_attacking:
                 self.flip = True
 
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            self.pos_x += move_speed * dt
+            move_dir_x += 1.0
             is_moving = True
             if not self.is_attacking:
                 self.flip = False
 
-        # 擊退速度衰減與位移
+        # 取得當前地圖的碰撞箱
+        obstacles = []
+        if hasattr(self, "game_map") and self.game_map:
+            obstacles = getattr(self.game_map, "collisions", [])
+
+        # ==========================================
+        # 4. 分離軸物理：X 軸位移與碰撞處理
+        # ==========================================
+        dx = move_dir_x * move_speed * dt
         if abs(self.knockback_vel_x) > 5.0:
-            self.pos_x += self.knockback_vel_x * dt
+            dx += self.knockback_vel_x * dt
             self.knockback_vel_x *= max(0.0, 1.0 - 10.0 * dt)
         else:
             self.knockback_vel_x = 0.0
 
+        self.pos_x += dx
+        self.collision_rect.midbottom = (round(self.pos_x), round(self.pos_y))
+
         # 限制地圖左右邊界
-        self.pos_x = max(25.0, min(float(map_width - 25), self.pos_x))
+        if self.collision_rect.left < 25:
+            self.collision_rect.left = 25
+            self.pos_x = float(self.collision_rect.centerx)
+        elif self.collision_rect.right > map_width - 25:
+            self.collision_rect.right = map_width - 25
+            self.pos_x = float(self.collision_rect.centerx)
 
-        # 4. 固定跳躍高度與一致的重力加速度更新 (絕不隨放開按鍵削減 velocity_y)
+        if obstacles:
+            for wall in obstacles:
+                if self.collision_rect.colliderect(wall):
+                    if dx > 0:
+                        self.collision_rect.right = wall.left
+                    elif dx < 0:
+                        self.collision_rect.left = wall.right
+                    self.pos_x = float(self.collision_rect.centerx)
+
+        # ==========================================
+        # 5. 分離軸物理：Y 軸重力套用、位移與碰撞處理
+        # ==========================================
+        # 檢查是否站在地面上 (若腳底 2 像素有平台，保持在地面)
+        if obstacles:
+            probe = self.collision_rect.move(0, 2)
+            standing_on_ground = any(probe.colliderect(wall) for wall in obstacles)
+            if not standing_on_ground and self.velocity_y >= 0:
+                self.on_ground = False
+        else:
+            if self.pos_y < self.ground_y:
+                self.on_ground = False
+
+        # 僅在空中或有初速度時套用重力與垂直位移
         if not self.on_ground or self.velocity_y != 0.0:
-            self.velocity_y += self.gravity * dt
-            self.pos_y += self.velocity_y * dt
+            self.velocity_y = min(self.velocity_y + self.gravity * dt, 900.0)
+            dy = self.velocity_y * dt
+            self.pos_y += dy
+            self.collision_rect.midbottom = (round(self.pos_x), round(self.pos_y))
 
-            if self.pos_y >= self.ground_y:
-                self.pos_y = float(self.ground_y)
-                self.velocity_y = 0.0
-                self.on_ground = True
-                self.is_jumping = False
+            if obstacles:
+                for platform in obstacles:
+                    if self.collision_rect.colliderect(platform):
+                        if dy > 0:  # 正在落下：踩在碰撞箱頂部 (站立成功)
+                            self.collision_rect.bottom = platform.top
+                            self.pos_y = float(self.collision_rect.bottom)
+                            self.velocity_y = 0.0
+                            self.on_ground = True
+                            self.is_jumping = False
+                        elif dy < 0:  # 正在起跳：頭部撞擊障礙物底部
+                            self.collision_rect.top = platform.bottom
+                            self.pos_y = float(self.collision_rect.bottom)
+                            self.velocity_y = 0.0
+            else:
+                # 無碰撞箱時的保底地面高度
+                if self.pos_y >= self.ground_y:
+                    self.pos_y = float(self.ground_y)
+                    self.collision_rect.bottom = int(self.pos_y)
+                    self.velocity_y = 0.0
+                    self.on_ground = True
+                    self.is_jumping = False
+        else:
+            # 站在地面上時，垂直速度確保為 0，座標鎖定在地面頂部
+            self.velocity_y = 0.0
+            self.is_jumping = False
 
         # 5. 狀態與動畫更新
         new_state = "idle"

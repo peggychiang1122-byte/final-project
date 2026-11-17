@@ -41,16 +41,29 @@ class GameMap:
         # 讀取 Tiled 碰撞物件
         # ==========================================
         for obj in collision_layer:
-            # 檢查物件是否有設定 target_map 自訂屬性
-            target_map = obj.properties.get("target_map")
+            # 檢查物件是否有設定 target 自訂屬性 (相容 target, target_map, target map)
+            props = getattr(obj, "properties", {})
+            target_map = (
+                props.get("target") or
+                props.get("target_map") or
+                props.get("target map")
+            )
 
             if target_map:
                 # 這是傳送門物件！記錄觸發範圍與目標資訊
+                spawn_x = props.get("spawn_x") or props.get("spawn x") or 100
+                spawn_y = props.get("spawn_y") or props.get("spawn y") or 100
                 portal_data = {
-                    "rect": pygame.Rect( round(obj.x), round(obj.y), round(obj.width),  round(obj.height), ),
-                    "target_map": target_map,
-                    "spawn_x": obj.properties.get("spawn_x", 100),
-                    "spawn_y": obj.properties.get("spawn_y", 100),
+                    "rect": pygame.Rect(
+                        round(obj.x),
+                        round(obj.y),
+                        round(obj.width),
+                        round(obj.height),
+                    ),
+                    "target_map": str(target_map),
+                    "spawn_x": float(spawn_x),
+                    "spawn_y": float(spawn_y),
+                    "properties": props,
                 }
                 self.portals.append(portal_data)
                 continue
@@ -170,10 +183,20 @@ class GameMap:
             )
 
         # 橘色多邊形碰撞區
-        
-        
         for polygon in self.polygons:
             if len(polygon) < 3:
                 continue
             screen_points = [ (round(x - camera_x), round(y - camera_y)) for x, y in polygon  ]
             pygame.draw.polygon(screen, (255, 140, 0), screen_points, 2)
+
+        # 紫色/洋紅色：傳送門觸發區 (Portals)
+        for portal in self.portals:
+            p_rect = portal["rect"].move(-camera_x, -camera_y)
+            pygame.draw.rect(screen, (255, 0, 255), p_rect, 2)
+
+    def check_portal(self, player_rect):
+        """檢查玩家是否碰觸到地圖傳送門"""
+        for portal in self.portals:
+            if player_rect.colliderect(portal["rect"]):
+                return portal
+        return None
